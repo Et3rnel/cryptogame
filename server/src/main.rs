@@ -1,30 +1,20 @@
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async};
-
-use tokio::sync::Mutex;
-use std::sync::Arc;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-struct Player {
-    id: String,
-    position: (f64, f64),
-}
-
-struct GameState {
-    players: HashMap<String, Player>,
-}
-
-enum Message {
-    PlayerJoin(String),
-    PlayerMove { id: String, position: (f64, f64) },
-}
+use std::collections::HashMap;
 
 async fn handle_connection(stream: TcpStream) {
-    if let Err(e) = accept_async(stream).await {
-        println!("Error during the websocket handshake: {}", e);
-        return;
-    }
+    let ws_stream = match accept_async(stream).await{
+        Ok(ws) => ws,
+        Err(e) => {
+            println!("Error during the websocket handshake: {}", e);
+            return;
+        },
+    };
     println!("WebSocket connection established");
+
+    // let (write, mut read) = ws_stream.split();
 }
 
 #[tokio::main]
