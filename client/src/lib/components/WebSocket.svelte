@@ -4,7 +4,7 @@
     let ws: WebSocket;
 
     onMount(() => {
-        ws = new WebSocket('ws://127.0.0.1:8080');
+        ws = new WebSocket('ws://localhost:8080');
         let heartbeatInterval: number;
         const heartbeatFrequency = 30000; // Frequency of heartbeat in milliseconds (e.g., 30 seconds)
 
