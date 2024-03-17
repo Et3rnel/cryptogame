@@ -5,20 +5,10 @@
 
     onMount(() => {
         ws = new WebSocket('ws://localhost:8080');
-        let heartbeatInterval: number;
-        const heartbeatFrequency = 30000; // Frequency of heartbeat in milliseconds (e.g., 30 seconds)
 
         ws.onopen = () => {
             console.log('Connected to the WebSocket server');
             return false;
-
-
-            // heartbeatInterval = setInterval(() => {
-            //     // Check if the WebSocket connection is still open
-            //     if (ws.readyState === WebSocket.OPEN) {
-            //         ws.send(JSON.stringify({ type: 'heartbeat', data: 'ping' }));
-            //     }
-            // }, heartbeatFrequency);
         };
 
         ws.onmessage = (event: MessageEvent) => {

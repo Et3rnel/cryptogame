@@ -1,6 +1,6 @@
 .PHONY: server websocket
 
-server:
+start:
 	@echo "Launching Rust server..."
 	@cargo run
 

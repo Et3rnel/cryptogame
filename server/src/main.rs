@@ -1,7 +1,29 @@
 use std::{env, io::Error};
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use uuid::Uuid;
+use serde::{Deserialize, Serialize};
+use tokio_tungstenite::tungstenite::Message;
 
 use futures_util::{future, StreamExt, TryStreamExt};
 use tokio::net::{TcpListener, TcpStream};
+use once_cell::sync::Lazy;
+
+struct Position {
+    x: i32,
+    y: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+enum Command {
+    Position { x: i32, y: i32 },
+}
+
+// Globally accessible state
+static USER_STATES: Lazy<Arc<Mutex<HashMap<String, Position>>>> = Lazy::new(|| {
+    Arc::new(Mutex::new(HashMap::new()))
+});
+
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -31,12 +53,38 @@ async fn accept_connection(stream: TcpStream) {
         .await
         .expect("Error during the websocket handshake occurred");
 
-    println!("New WebSocket connection: {}", addr);
+    let client_id = Uuid::new_v4().to_string();
 
-    let (write, read) = ws_stream.split();
-    // We should not forward messages other than text or binary.
-    read.try_filter(|msg| future::ready(msg.is_text() || msg.is_binary()))
-        .forward(write)
-        .await
-        .expect("Failed to forward messages")
+    println!("New WebSocket connection: {}", client_id);
+
+    let (write, mut read) = ws_stream.split();
+
+    while let Some(message_result) = read.next().await {
+        match message_result {
+            Ok(message) => {
+                match message {
+                    Message::Binary(data) => {
+                        let command_type = data[0]; // First byte to tell which command we use
+                        match command_type {
+                            0x01 => { // Position command
+                                match bincode::deserialize::<Command>(&data[1..]) {
+                                    Ok(position) => {
+                                        println!("Received position command: {:?}", position);
+                                    },
+                                    Err(e) => println!("Error deserializing position command: {:?}", e),
+                                }
+                            },
+                            _ => println!("Unknown command"),
+                        }
+                    },
+                    _ => (),
+                }
+            },
+            Err(e) => {
+                println!("Error receiving message: {:?}", e);
+                // Todo: we could want to close the connection, to try again..
+                break; // Handling example: stop the loop in case of error
+            },
+        }
+    }
 }
