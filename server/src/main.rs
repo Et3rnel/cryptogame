@@ -67,11 +67,13 @@ async fn accept_connection(stream: TcpStream) {
                         let command_type = data[0]; // First byte to tell which command we use
                         match command_type {
                             0x01 => { // Position command
-                                match bincode::deserialize::<Command>(&data[1..]) {
-                                    Ok(position) => {
-                                        println!("Received position command: {:?}", position);
-                                    },
-                                    Err(e) => println!("Error deserializing position command: {:?}", e),
+                                let direction = data[1];
+                                match direction {
+                                    0x01 => println!("Move up"),
+                                    0x02 => println!("Move down"),
+                                    0x03 => println!("Move left"),
+                                    0x04 => println!("Move right"),
+                                    _ => println!("Unknown direction"),
                                 }
                             },
                             _ => println!("Unknown command"),
