@@ -1,29 +1,13 @@
+mod player;
+mod state;
+
+use crate::player::Player;
+use crate::state::USER_STATES;
+use futures_util::StreamExt;
 use std::{env, io::Error};
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use uuid::Uuid;
-use serde::{Deserialize, Serialize};
-use tokio_tungstenite::tungstenite::Message;
-
-use futures_util::{future, StreamExt, TryStreamExt};
 use tokio::net::{TcpListener, TcpStream};
-use once_cell::sync::Lazy;
-
-struct Position {
-    x: i32,
-    y: i32,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-enum Command {
-    Position { x: i32, y: i32 },
-}
-
-// Globally accessible state
-static USER_STATES: Lazy<Arc<Mutex<HashMap<String, Position>>>> = Lazy::new(|| {
-    Arc::new(Mutex::new(HashMap::new()))
-});
-
+use tokio_tungstenite::tungstenite::Message;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -54,6 +38,11 @@ async fn accept_connection(stream: TcpStream) {
         .expect("Error during the websocket handshake occurred");
 
     let client_id = Uuid::new_v4().to_string();
+    USER_STATES
+        .lock()
+        .unwrap()
+        .entry(client_id.clone())
+        .or_insert(Player { x: 0, y: 0 });
 
     println!("New WebSocket connection: {}", client_id);
 
@@ -66,27 +55,25 @@ async fn accept_connection(stream: TcpStream) {
                     Message::Binary(data) => {
                         let command_type = data[0]; // First byte to tell which command we use
                         match command_type {
-                            0x01 => { // Position command
+                            0x01 => {
+                                // Move command
                                 let direction = data[1];
-                                match direction {
-                                    0x01 => println!("Move up"),
-                                    0x02 => println!("Move down"),
-                                    0x03 => println!("Move left"),
-                                    0x04 => println!("Move right"),
-                                    _ => println!("Unknown direction"),
+                                let mut user_states = USER_STATES.lock().unwrap();
+                                if let Some(player) = user_states.get_mut(&client_id) {
+                                    player.move_in_direction(direction);
                                 }
-                            },
+                            }
                             _ => println!("Unknown command"),
                         }
-                    },
+                    }
                     _ => (),
                 }
-            },
+            }
             Err(e) => {
                 println!("Error receiving message: {:?}", e);
                 // Todo: we could want to close the connection, to try again..
                 break; // Handling example: stop the loop in case of error
-            },
+            }
         }
     }
 }
