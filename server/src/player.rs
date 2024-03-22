@@ -4,7 +4,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn move_in_direction(&mut self, direction_code: u8) {
+    pub fn move_in_direction(&mut self, direction_code: u8) -> (i32, i32) {
         let step_size = 1; // Define the step size for movement
 
         match direction_code {
@@ -16,5 +16,7 @@ impl Player {
         }
 
         println!("Current position: x = {}, y = {}", self.x, self.y);
+
+        (self.x, self.y)
     }
 }

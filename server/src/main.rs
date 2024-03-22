@@ -1,9 +1,10 @@
+mod networking;
 mod player;
 mod state;
 
 use crate::player::Player;
 use crate::state::USER_STATES;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use std::{env, io::Error};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::Message;
@@ -46,7 +47,7 @@ async fn accept_connection(stream: TcpStream) {
 
     println!("New WebSocket connection: {}", client_id);
 
-    let (write, mut read) = ws_stream.split();
+    let (mut write, mut read) = ws_stream.split();
 
     while let Some(message_result) = read.next().await {
         match message_result {
@@ -58,10 +59,22 @@ async fn accept_connection(stream: TcpStream) {
                             0x01 => {
                                 // Move command
                                 let direction = data[1];
-                                let mut user_states = USER_STATES.lock().unwrap();
-                                if let Some(player) = user_states.get_mut(&client_id) {
-                                    player.move_in_direction(direction);
-                                }
+
+                                let result = {
+                                    let mut user_states = USER_STATES.lock().unwrap();
+
+                                    if let Some(player) = user_states.get_mut(&client_id) {
+                                        let result = player.move_in_direction(direction);
+                                        result
+                                    } else {
+                                        println!("Player not found");
+                                        (0, 0)
+                                    }
+                                };
+
+                                let move_result_text =
+                                    format!("Position: ({}, {})", result.0, result.1);
+                                write.send(Message::Text(move_result_text)).await;
                             }
                             _ => println!("Unknown command"),
                         }
