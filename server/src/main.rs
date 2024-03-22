@@ -1,7 +1,9 @@
-mod networking;
+mod command;
+mod message;
 mod player;
 mod state;
 
+use crate::message::create_player_position_message;
 use crate::player::Player;
 use crate::state::USER_STATES;
 use futures_util::{SinkExt, StreamExt};
@@ -72,9 +74,10 @@ async fn accept_connection(stream: TcpStream) {
                                     }
                                 };
 
-                                let move_result_text =
-                                    format!("Position: ({}, {})", result.0, result.1);
-                                write.send(Message::Text(move_result_text)).await;
+                                let move_result_binary =
+                                    create_player_position_message(result.0, result.1);
+
+                                let _ = write.send(Message::Binary(move_result_binary)).await;
                             }
                             _ => println!("Unknown command"),
                         }
