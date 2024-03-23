@@ -41,15 +41,18 @@ async fn accept_connection(stream: TcpStream) {
         .await
         .expect("Error during the websocket handshake occurred");
 
-    // TODO: change interval to have 60 fps in game
-    let mut tick_interval = interval(Duration::from_millis(100)); // 100ms interval
+    let mut tick_interval = interval(Duration::from_millis(16)); // 60 FPS
 
     let client_id = Uuid::new_v4().to_string();
     USER_STATES
         .lock()
         .await
         .entry(client_id.clone())
-        .or_insert(Player { x: 0, y: 0 });
+        .or_insert(Player {
+            x: 0,
+            y: 0,
+            direction: 0.0,
+        });
 
     println!("New WebSocket connection: {}", client_id);
 
