@@ -9,6 +9,7 @@ use crate::state::USER_STATES;
 use futures_util::{SinkExt, StreamExt};
 use std::{env, io::Error};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::{interval, Duration};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
@@ -40,10 +41,13 @@ async fn accept_connection(stream: TcpStream) {
         .await
         .expect("Error during the websocket handshake occurred");
 
+    // TODO: change interval to have 60 fps in game
+    let mut tick_interval = interval(Duration::from_millis(100)); // 100ms interval
+
     let client_id = Uuid::new_v4().to_string();
     USER_STATES
         .lock()
-        .unwrap()
+        .await
         .entry(client_id.clone())
         .or_insert(Player { x: 0, y: 0 });
 
@@ -51,45 +55,40 @@ async fn accept_connection(stream: TcpStream) {
 
     let (mut write, mut read) = ws_stream.split();
 
-    while let Some(message_result) = read.next().await {
-        match message_result {
-            Ok(message) => {
-                match message {
-                    Message::Binary(data) => {
-                        let command_type = data[0]; // First byte to tell which command we use
-                        match command_type {
-                            0x01 => {
-                                // Move command
+    loop {
+        tokio::select! {
+            _ = tick_interval.tick() => {
+                let user_states = USER_STATES.lock().await;
+
+                if let Some(player) = user_states.get(&client_id) {
+                    let position_message = create_player_position_message(player.x, player.y);
+                    let _ = write.send(Message::Binary(position_message)).await;
+                }
+            },
+            message_result = read.next() => {
+                if let Some(Ok(message)) = message_result {
+                    match message {
+                        Message::Binary(data) => {
+                            let command_type = data[0];
+                            if command_type == 0x01 {
+                                // Direction command
                                 let direction = data[1];
 
-                                let result = {
-                                    let mut user_states = USER_STATES.lock().unwrap();
+                                let mut user_states = USER_STATES.lock().await;
 
-                                    if let Some(player) = user_states.get_mut(&client_id) {
-                                        let result = player.move_in_direction(direction);
-                                        result
-                                    } else {
-                                        println!("Player not found");
-                                        (0, 0)
-                                    }
-                                };
-
-                                let move_result_binary =
-                                    create_player_position_message(result.0, result.1);
-
-                                let _ = write.send(Message::Binary(move_result_binary)).await;
+                                if let Some(player) = user_states.get_mut(&client_id) {
+                                    player.move_in_direction(direction);
+                                } else {
+                                    println!("Player not found");
+                                }
                             }
-                            _ => println!("Unknown command"),
-                        }
+                        },
+                        _ => (),
                     }
-                    _ => (),
+                } else {
+                    break; // exit loop if read.next() return None (connection closed) or an error
                 }
-            }
-            Err(e) => {
-                println!("Error receiving message: {:?}", e);
-                // Todo: we could want to close the connection, to try again..
-                break; // Handling example: stop the loop in case of error
-            }
+            },
         }
     }
 }
