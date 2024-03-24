@@ -49,8 +49,8 @@ async fn accept_connection(stream: TcpStream) {
         .await
         .entry(client_id.clone())
         .or_insert(Player {
-            x: 0,
-            y: 0,
+            x: 350, // TODO: initial start on the middle of the canvas, to be changed later
+            y: 350,
             direction: 0.0,
         });
 
@@ -61,9 +61,10 @@ async fn accept_connection(stream: TcpStream) {
     loop {
         tokio::select! {
             _ = tick_interval.tick() => {
-                let user_states = USER_STATES.lock().await;
+                let mut user_states = USER_STATES.lock().await;
 
-                if let Some(player) = user_states.get(&client_id) {
+                if let Some(player) = user_states.get_mut(&client_id) {
+                    player.update_position();
                     let position_message = create_player_position_message(player.x, player.y);
                     let _ = write.send(Message::Binary(position_message)).await;
                 }
@@ -74,13 +75,10 @@ async fn accept_connection(stream: TcpStream) {
                         Message::Binary(data) => {
                             let command_type = data[0];
                             if command_type == 0x01 {
-                                // Direction command
                                 let direction = data[1];
-
                                 let mut user_states = USER_STATES.lock().await;
-
                                 if let Some(player) = user_states.get_mut(&client_id) {
-                                    player.move_in_direction(direction);
+                                    player.update_direction(direction);
                                 } else {
                                     println!("Player not found");
                                 }
