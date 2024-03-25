@@ -1,6 +1,6 @@
 use crate::command::SendCommand;
 
-pub fn create_player_position_message(x: i32, y: i32) -> Vec<u8> {
+pub fn create_player_position_message(x: f64, y: f64) -> Vec<u8> {
     let mut bytes = Vec::new();
 
     let command_id = SendCommand::PlayerPosition as u8;

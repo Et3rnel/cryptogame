@@ -49,8 +49,8 @@ async fn accept_connection(stream: TcpStream) {
         .await
         .entry(client_id.clone())
         .or_insert(Player {
-            x: 350, // TODO: initial start on the middle of the canvas, to be changed later
-            y: 350,
+            x: 350.0, // TODO: initial start on the middle of the canvas, to be changed later
+            y: 350.0,
             direction: 0.0,
         });
 
