@@ -6,7 +6,7 @@ pub struct Player {
 
 impl Player {
     pub fn update_direction(&mut self, direction_code: u8) {
-        let rotation_step = 10.0;
+        let rotation_step = 2.0;
         match direction_code {
             0x01 => self.direction -= rotation_step, // left
             0x02 => self.direction += rotation_step, // right
