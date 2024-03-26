@@ -7,11 +7,17 @@ use crate::message::create_player_position_message;
 use crate::player::Player;
 use crate::state::USER_STATES;
 use futures_util::{SinkExt, StreamExt};
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::{env, io::Error};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Mutex;
 use tokio::time::{interval, Duration};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
+
+type ClientMap = Arc<Mutex<HashMap<String, UnboundedSender<Message>>>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -24,14 +30,34 @@ async fn main() -> Result<(), Error> {
     let listener = try_socket.expect("Failed to bind");
     println!("Listening on: {}", addr);
 
+    let clients: ClientMap = Arc::new(Mutex::new(HashMap::new()));
+    let clients_for_tick = clients.clone();
+
+    tokio::spawn(async move {
+        let mut tick_interval = interval(Duration::from_millis(16)); // 60 FPS
+        loop {
+            tick_interval.tick().await;
+            let mut user_states = USER_STATES.lock().await;
+
+            for (id, player) in user_states.iter_mut() {
+                player.update_position();
+                let message = Message::Binary(create_player_position_message(player.x, player.y));
+                let clients_guard = clients_for_tick.lock().await;
+                for tx in clients_guard.values() {
+                    let _ = tx.send(message.clone());
+                }
+            }
+        }
+    });
+
     while let Ok((stream, _)) = listener.accept().await {
-        tokio::spawn(accept_connection(stream));
+        tokio::spawn(accept_connection(stream, clients.clone()));
     }
 
     Ok(())
 }
 
-async fn accept_connection(stream: TcpStream) {
+async fn accept_connection(stream: TcpStream, clients: ClientMap) {
     let addr = stream
         .peer_addr()
         .expect("connected streams should have a peer address");
@@ -41,9 +67,11 @@ async fn accept_connection(stream: TcpStream) {
         .await
         .expect("Error during the websocket handshake occurred");
 
-    let mut tick_interval = interval(Duration::from_millis(16)); // 60 FPS
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
     let client_id = Uuid::new_v4().to_string();
+    clients.lock().await.insert(client_id.clone(), tx);
+
     USER_STATES
         .lock()
         .await
@@ -60,15 +88,6 @@ async fn accept_connection(stream: TcpStream) {
 
     loop {
         tokio::select! {
-            _ = tick_interval.tick() => {
-                let mut user_states = USER_STATES.lock().await;
-
-                if let Some(player) = user_states.get_mut(&client_id) {
-                    player.update_position();
-                    let position_message = create_player_position_message(player.x, player.y);
-                    let _ = write.send(Message::Binary(position_message)).await;
-                }
-            },
             message_result = read.next() => {
                 if let Some(Ok(message)) = message_result {
                     match message {
@@ -88,6 +107,13 @@ async fn accept_connection(stream: TcpStream) {
                     }
                 } else {
                     break; // exit loop if read.next() return None (connection closed) or an error
+                }
+            },
+            Some(message) = rx.recv() => {
+                if write.send(message).await.is_err() {
+                    // TODO: handle the error
+                    // TODO: check if we want to break if it fails
+                    break;
                 }
             },
         }
