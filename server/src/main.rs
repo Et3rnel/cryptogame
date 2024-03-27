@@ -21,6 +21,8 @@ type ClientMap = Arc<Mutex<HashMap<String, UnboundedSender<Message>>>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    env_logger::init();
+
     let addr = env::args()
         .nth(1)
         .unwrap_or_else(|| "127.0.0.1:8080".to_string());
@@ -39,7 +41,7 @@ async fn main() -> Result<(), Error> {
             tick_interval.tick().await;
             let mut user_states = USER_STATES.lock().await;
 
-            for (id, player) in user_states.iter_mut() {
+            for (_, player) in user_states.iter_mut() {
                 player.update_position();
             }
 
