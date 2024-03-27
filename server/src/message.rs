@@ -18,7 +18,7 @@ pub fn create_global_state_message(user_states: &HashMap<String, Player>) -> Vec
             }
             Err(e) => {
                 error!("Failed to parse UUID: {}. Error: {}", uuid, e);
-                // Optionally, continue to the next player or handle the error as needed
+                // Skip the problematic player UUID and continue
             }
         }
     }
