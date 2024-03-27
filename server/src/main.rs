@@ -3,7 +3,7 @@ mod message;
 mod player;
 mod state;
 
-use crate::message::create_player_position_message;
+use crate::message::create_global_state_message;
 use crate::player::Player;
 use crate::state::USER_STATES;
 use futures_util::{SinkExt, StreamExt};
@@ -41,11 +41,12 @@ async fn main() -> Result<(), Error> {
 
             for (id, player) in user_states.iter_mut() {
                 player.update_position();
-                let message = Message::Binary(create_player_position_message(player.x, player.y));
-                let clients_guard = clients_for_tick.lock().await;
-                for tx in clients_guard.values() {
-                    let _ = tx.send(message.clone());
-                }
+            }
+
+            let message = Message::Binary(create_global_state_message(&user_states));
+            let clients_guard = clients_for_tick.lock().await;
+            for tx in clients_guard.values() {
+                let _ = tx.send(message.clone());
             }
         }
     });

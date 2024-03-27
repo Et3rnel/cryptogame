@@ -68,13 +68,26 @@
         ws.send(buffer);
     }
 
-    function drawPlayer(x: number, y: number): void {
+    function drawPlayer(uuid: string, x: number, y: number, color: string): void {
         if (context) {
             context.beginPath();
             context.arc(x, y, 10, 0, 2 * Math.PI);
-            context.fillStyle = 'red';
+            context.fillStyle = color;
             context.fill();
         }
+    }
+
+    const playerColors: any = {};
+
+    function getRandomColor(): any {
+        // Generates a random hex color, avoiding white
+        let color = "#";
+        for (let i = 0; i < 3; i++) {
+            // Generate a value between 0 and 255, converted to a hex string
+            const part = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+            color += part;
+        }
+        return color !== "#FFFFFF" ? color : getRandomColor(); // Ensure color is not white
     }
 
     function handleWebSocketMessage(event: MessageEvent) {
@@ -82,23 +95,37 @@
 
         const reader = new FileReader();
         reader.onload = function() {
-            // `reader.result` can be `string | ArrayBuffer | null`, we make sure it's an array buffer
             if (typeof reader.result === 'string' || reader.result === null) {
                 console.error('Expected an ArrayBuffer');
                 return;
             }
 
             const buffer = new Uint8Array(reader.result);
+            // Assuming the first byte is a command ID, you can ignore or use it as needed
             const commandId = buffer[0];
-
+            // console.log('Totoo');
+            // Ensure this is the command we are interested in for position updates
             if (commandId === MOVE_COMMAND) {
-                const dataView = new DataView(reader.result);
-                const posX = dataView.getFloat64(1, false); // big-endian
-                const posY = dataView.getFloat64(9, false); // big-endian
 
-                // console.log('X: ' + posX + ', Y: ' + posY)
+                // Iterate through each player in the message
+                for (let offset = 1; offset < buffer.length; offset += 32) {
+                    // Extract the UUID (as a hexadecimal string for simplicity)
+                    const uuidBytes = buffer.slice(offset, offset + 16);
+                    const playerId = [...uuidBytes].map(b => b.toString(16).padStart(2, '0')).join('');
 
-                drawPlayer(posX, posY);
+                    // Assign a random color to the player if it doesn't have one
+                    if (!playerColors[playerId]) {
+                        playerColors[playerId] = getRandomColor();
+                    }
+
+                    // Extract the x and y positions
+                    const dataView = new DataView(buffer.buffer, offset + 16, 16); // Use buffer.buffer to get the underlying ArrayBuffer
+                    const posX = dataView.getFloat64(0, false); // big-endian
+                    const posY = dataView.getFloat64(8, false); // big-endian
+
+                    // Draw the player using their specific color
+                    drawPlayer(playerId, posX, posY, playerColors[playerId]);
+                }
             }
         };
         reader.readAsArrayBuffer(event.data);
