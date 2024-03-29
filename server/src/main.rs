@@ -1,12 +1,14 @@
 mod command;
+mod game;
 mod message;
 mod player;
 mod state;
 
 use crate::message::create_global_state_message;
-use crate::player::Player;
+use crate::player::{calculate_player_position, Player};
 use crate::state::USER_STATES;
 use futures_util::{SinkExt, StreamExt};
+use game::{Canvas, Game};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::{env, io::Error};
@@ -53,14 +55,21 @@ async fn main() -> Result<(), Error> {
         }
     });
 
+    let game = Arc::new(Game {
+        canvas: Canvas {
+            width: 800,
+            height: 600,
+        },
+    });
+
     while let Ok((stream, _)) = listener.accept().await {
-        tokio::spawn(accept_connection(stream, clients.clone()));
+        tokio::spawn(accept_connection(stream, clients.clone(), game.clone()));
     }
 
     Ok(())
 }
 
-async fn accept_connection(stream: TcpStream, clients: ClientMap) {
+async fn accept_connection(stream: TcpStream, clients: ClientMap, game: Arc<Game>) {
     let addr = stream
         .peer_addr()
         .expect("connected streams should have a peer address");
@@ -70,22 +79,13 @@ async fn accept_connection(stream: TcpStream, clients: ClientMap) {
         .await
         .expect("Error during the websocket handshake occurred");
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-
     let client_id = Uuid::new_v4().to_string();
+    println!("New WebSocket connection: {}", client_id);
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     clients.lock().await.insert(client_id.clone(), tx);
 
-    USER_STATES
-        .lock()
-        .await
-        .entry(client_id.clone())
-        .or_insert(Player {
-            x: 350.0, // TODO: initial start on the middle of the canvas, to be changed later
-            y: 350.0,
-            direction: 0.0,
-        });
-
-    println!("New WebSocket connection: {}", client_id);
+    place_new_player(client_id.clone(), game.clone()).await;
 
     let (mut write, mut read) = ws_stream.split();
 
@@ -121,4 +121,21 @@ async fn accept_connection(stream: TcpStream, clients: ClientMap) {
             },
         }
     }
+}
+
+async fn place_new_player(client_id: String, game: Arc<Game>) {
+    let (x, y) = {
+        let user_states = USER_STATES.lock().await;
+        calculate_player_position(&*user_states, &game.canvas)
+    };
+
+    let mut user_states = USER_STATES.lock().await;
+    user_states.insert(
+        client_id,
+        Player {
+            x,
+            y,
+            direction: 0.0,
+        },
+    );
 }
