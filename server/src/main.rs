@@ -37,6 +37,15 @@ async fn main() -> Result<(), Error> {
     let clients: ClientMap = Arc::new(Mutex::new(HashMap::new()));
     let clients_for_tick = clients.clone();
 
+    let game = Arc::new(Game {
+        canvas: Canvas {
+            width: 800,
+            height: 600,
+        },
+    });
+
+    let game_clone = game.clone();
+
     tokio::spawn(async move {
         let mut tick_interval = interval(Duration::from_millis(16)); // 60 FPS
         loop {
@@ -44,7 +53,18 @@ async fn main() -> Result<(), Error> {
             let mut user_states = USER_STATES.lock().await;
 
             for (_, player) in user_states.iter_mut() {
-                player.update_position();
+                if player.alive {
+                    player.update_position();
+
+                    let canvas = &game_clone.canvas;
+                    if player.x < 0.0
+                        || player.x > canvas.width as f64
+                        || player.y < 0.0
+                        || player.y > canvas.height as f64
+                    {
+                        player.alive = false;
+                    }
+                }
             }
 
             let message = Message::Binary(create_global_state_message(&user_states));
@@ -53,13 +73,6 @@ async fn main() -> Result<(), Error> {
                 let _ = tx.send(message.clone());
             }
         }
-    });
-
-    let game = Arc::new(Game {
-        canvas: Canvas {
-            width: 800,
-            height: 600,
-        },
     });
 
     while let Ok((stream, _)) = listener.accept().await {
@@ -136,6 +149,7 @@ async fn place_new_player(client_id: String, game: Arc<Game>) {
             x,
             y,
             direction: 0.0,
+            alive: true,
         },
     );
 }

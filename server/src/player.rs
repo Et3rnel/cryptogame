@@ -1,3 +1,4 @@
+use log::error;
 use rand::Rng;
 use std::collections::HashMap;
 
@@ -7,6 +8,7 @@ pub struct Player {
     pub x: f64,
     pub y: f64,
     pub direction: f64,
+    pub alive: bool,
 }
 
 impl Player {
@@ -62,5 +64,5 @@ pub fn calculate_player_position(
     }
 
     error!("Cannot find a matching start position for player after 100 tries.");
-    return (width/2, height/2); // default to the middle of the canvas
+    return (width / 2., height / 2.); // default to the middle of the canvas
 }
