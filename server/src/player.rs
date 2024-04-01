@@ -9,6 +9,7 @@ pub struct Player {
     pub y: f64,
     pub direction: f64,
     pub alive: bool,
+    pub radius: f64,
 }
 
 impl Player {
@@ -30,6 +31,16 @@ impl Player {
 
         self.x += rad.cos() * step_size;
         self.y += rad.sin() * step_size;
+    }
+
+    pub fn check_border_collision(&mut self, canvas: &Canvas) {
+        if self.x - self.radius < 0.0
+            || self.x + self.radius > f64::from(canvas.width)
+            || self.y - self.radius < 0.0
+            || self.y + self.radius > f64::from(canvas.height)
+        {
+            self.alive = false;
+        }
     }
 }
 
