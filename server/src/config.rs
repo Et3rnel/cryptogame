@@ -1,6 +1,7 @@
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -11,27 +12,21 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(config_path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut file = match File::open(config_path) {
-            Ok(file) => file,
-            Err(e) => {
-                error!("Failed to open configuration file: {}", e);
-                return Err(e.into());
-            }
-        };
+    pub fn load(config_path: &Path) -> Result<Self, Box<dyn Error>> {
+        let mut file = File::open(config_path).map_err(|e| {
+            error!("Failed to open configuration file: {}", e);
+            e
+        })?;
 
         let mut contents = String::new();
-        if let Err(e) = file.read_to_string(&mut contents) {
+        file.read_to_string(&mut contents).map_err(|e| {
             error!("Failed to read configuration file: {}", e);
-            return Err(e.into());
-        }
+            e
+        })?;
 
-        match serde_json::from_str(&contents) {
-            Ok(config) => Ok(config),
-            Err(e) => {
-                error!("Failed to parse configuration JSON: {}", e);
-                return Err(e.into());
-            }
-        }
+        serde_json::from_str(&contents).map_err(|e| {
+            error!("Failed to parse configuration JSON: {}", e);
+            e.into() // Make sure the error type is consistent with the return type
+        })
     }
 }
