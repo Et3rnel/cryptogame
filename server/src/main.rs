@@ -1,4 +1,5 @@
 mod command;
+mod config;
 mod game;
 mod message;
 mod player;
@@ -7,9 +8,11 @@ mod state;
 use crate::message::create_global_state_message;
 use crate::player::{calculate_player_position, Player};
 use crate::state::USER_STATES;
+use config::Config;
 use futures_util::{SinkExt, StreamExt};
 use game::{Canvas, Game};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::{env, io::Error};
 use tokio::net::{TcpListener, TcpStream};
@@ -25,6 +28,10 @@ type ClientMap = Arc<Mutex<HashMap<String, UnboundedSender<Message>>>>;
 async fn main() -> Result<(), Error> {
     env_logger::init();
 
+    let config_path = Path::new("../config.json");
+    let config =
+        Config::load(config_path).expect("Game cannot start without a valid configuration file");
+
     let addr = env::args()
         .nth(1)
         .unwrap_or_else(|| "127.0.0.1:8080".to_string());
@@ -37,6 +44,15 @@ async fn main() -> Result<(), Error> {
     let clients: ClientMap = Arc::new(Mutex::new(HashMap::new()));
     let clients_for_tick = clients.clone();
 
+    let game = Arc::new(Game {
+        canvas: Canvas {
+            width: 600,
+            height: 600,
+        },
+    });
+
+    let game_clone = game.clone();
+
     tokio::spawn(async move {
         let mut tick_interval = interval(Duration::from_millis(16)); // 60 FPS
         loop {
@@ -44,7 +60,12 @@ async fn main() -> Result<(), Error> {
             let mut user_states = USER_STATES.lock().await;
 
             for (_, player) in user_states.iter_mut() {
-                player.update_position();
+                if player.alive {
+                    player.update_position();
+
+                    let canvas = &game_clone.canvas;
+                    player.check_border_collision(canvas)
+                }
             }
 
             let message = Message::Binary(create_global_state_message(&user_states));
@@ -55,21 +76,24 @@ async fn main() -> Result<(), Error> {
         }
     });
 
-    let game = Arc::new(Game {
-        canvas: Canvas {
-            width: 800,
-            height: 600,
-        },
-    });
-
     while let Ok((stream, _)) = listener.accept().await {
-        tokio::spawn(accept_connection(stream, clients.clone(), game.clone()));
+        tokio::spawn(accept_connection(
+            stream,
+            clients.clone(),
+            game.clone(),
+            Arc::new(config.clone()),
+        ));
     }
 
     Ok(())
 }
 
-async fn accept_connection(stream: TcpStream, clients: ClientMap, game: Arc<Game>) {
+async fn accept_connection(
+    stream: TcpStream,
+    clients: ClientMap,
+    game: Arc<Game>,
+    config: Arc<Config>,
+) {
     let addr = stream
         .peer_addr()
         .expect("connected streams should have a peer address");
@@ -85,7 +109,7 @@ async fn accept_connection(stream: TcpStream, clients: ClientMap, game: Arc<Game
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     clients.lock().await.insert(client_id.clone(), tx);
 
-    place_new_player(client_id.clone(), game.clone()).await;
+    place_new_player(client_id.clone(), game.clone(), config.clone()).await;
 
     let (mut write, mut read) = ws_stream.split();
 
@@ -123,7 +147,7 @@ async fn accept_connection(stream: TcpStream, clients: ClientMap, game: Arc<Game
     }
 }
 
-async fn place_new_player(client_id: String, game: Arc<Game>) {
+async fn place_new_player(client_id: String, game: Arc<Game>, config: Arc<Config>) {
     let (x, y) = {
         let user_states = USER_STATES.lock().await;
         calculate_player_position(&*user_states, &game.canvas)
@@ -136,6 +160,8 @@ async fn place_new_player(client_id: String, game: Arc<Game>) {
             x,
             y,
             direction: 0.0,
+            alive: true,
+            radius: config.player_radius,
         },
     );
 }

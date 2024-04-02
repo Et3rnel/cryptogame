@@ -143,4 +143,4 @@
 </style>
 
 
-<canvas bind:this={canvas} width="700" height="700"></canvas>
+<canvas bind:this={canvas} width="600" height="600"></canvas>

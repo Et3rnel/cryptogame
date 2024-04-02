@@ -1,3 +1,4 @@
+use log::error;
 use rand::Rng;
 use std::collections::HashMap;
 
@@ -7,6 +8,8 @@ pub struct Player {
     pub x: f64,
     pub y: f64,
     pub direction: f64,
+    pub alive: bool,
+    pub radius: f64,
 }
 
 impl Player {
@@ -28,6 +31,16 @@ impl Player {
 
         self.x += rad.cos() * step_size;
         self.y += rad.sin() * step_size;
+    }
+
+    pub fn check_border_collision(&mut self, canvas: &Canvas) {
+        if self.x - self.radius < 0.0
+            || self.x + self.radius > f64::from(canvas.width)
+            || self.y - self.radius < 0.0
+            || self.y + self.radius > f64::from(canvas.height)
+        {
+            self.alive = false;
+        }
     }
 }
 
@@ -62,5 +75,5 @@ pub fn calculate_player_position(
     }
 
     error!("Cannot find a matching start position for player after 100 tries.");
-    return (width/2, height/2); // default to the middle of the canvas
+    return (width / 2., height / 2.); // default to the middle of the canvas
 }
