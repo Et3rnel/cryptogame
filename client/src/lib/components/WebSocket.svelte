@@ -8,7 +8,7 @@
     let currentDirection: string | null;
 
     onMount(() => {
-        ws = new WebSocket('ws://localhost:8080');
+        ws = new WebSocket('ws://127.0.0.1:8080');
 
         ws.onopen = () => {
             console.log('Connected to the WebSocket server');

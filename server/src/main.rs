@@ -28,13 +28,13 @@ type ClientMap = Arc<Mutex<HashMap<String, UnboundedSender<Message>>>>;
 async fn main() -> Result<(), Error> {
     env_logger::init();
 
-    let config_path = Path::new("../config.json");
+    let config_path = Path::new("config.json");
     let config =
         Config::load(config_path).expect("Game cannot start without a valid configuration file");
 
     let addr = env::args()
         .nth(1)
-        .unwrap_or_else(|| "127.0.0.1:8080".to_string());
+        .unwrap_or_else(|| "0.0.0.0:8080".to_string());
 
     // Create the event loop and TCP listener we'll accept connections on.
     let try_socket = TcpListener::bind(&addr).await;

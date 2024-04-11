@@ -1,0 +1,18 @@
+# Ignore the compiled binary and dependencies directory
+/target
+
+# Temporary files created by Rust and editors that don't need to be part of the build context
+**/*.rs.bk    # Backup source files
+**/*.log      # Log files that might be generated during development
+
+# Docker-related files that are not needed inside the Docker image
+docker-compose*.yml  # Docker Compose configuration files, if any
+Dockerfile*          # All Dockerfile variants
+
+# Version control system directories and files
+.git                 # Git directory
+.gitignore           # Specifies intentionally untracked files to ignore
+
+# Other files that are not needed for the build
+README.md            # Project's README file
+Makefile             # Makefile, typically used for local development tasks
