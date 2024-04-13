@@ -16,7 +16,7 @@ build-prod:
 
 # Run the environment container
 run-dev:
-	docker run --rm -p 8080:8080 cryptogame:dev-${TAG}
+	docker run --rm -v "$(PWD):/usr/src/cryptogame" -p 8080:8080 cryptogame:dev-${TAG}
 run-prod:
 	docker run --rm -p 8080:8080 cryptogame:prod-${TAG}
 

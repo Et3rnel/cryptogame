@@ -1,8 +1,8 @@
 FROM rust:1.77-bullseye as development
 WORKDIR /usr/src/cryptogame
-COPY . .
 
 # Hot reloading
 RUN cargo install cargo-watch
 
+# Start cargo-watch to automatically compile changes
 CMD ["cargo", "watch", "-x", "run"]
