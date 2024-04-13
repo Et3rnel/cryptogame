@@ -1,0 +1,15 @@
+FROM node:21-bullseye-slim
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm install
+
+# TODO: remove ?
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 5173
+
+# Start the application with hot reloading
+CMD ["npm", "run", "dev"]
+
